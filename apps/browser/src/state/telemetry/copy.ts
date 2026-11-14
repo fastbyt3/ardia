@@ -69,7 +69,7 @@ export const WHATS_SENT: { title: string; items: string[] }[] = [
       "How many automation rules waiting for approval had their notice held until the first window opened, summed up once an hour",
       "How many times you used Tidy Tabs, how many tabs it moved and how many times you undid it, summed up once an hour. Never which tabs or groups",
       "How many times you copied a tab's address, and how many of those were taken while its first page was still loading, summed up once an hour. Never the address",
-      "How many closed tabs and windows you reopened came back with their Back history, and how many Dock icon clicks brought a browser window forward, including those made while a floating video was in front, summed up once an hour",
+      "How many closed tabs and windows you reopened came back with their Back history, how many Dock icon clicks brought a browser window forward, and how many returns from another app with a floating video brought Ardia's full-screen window back or failed to, summed up once an hour",
       "How many times the \"New tab opened\" pill appeared after a link opened in the background, and how many times it was clicked, and how many link addresses showed at the top of the page because the pointer was near its bottom edge, summed up once an hour. Never which link or tab",
       "How many times ⌘T kept a New Tab bar that had opened on its own (in a new window or after closing the last tab) instead of closing it, summed up once an hour",
       "With address bar speed: how many search suggestion requests your search engine answered, refused as unusual traffic, or failed, summed up once an hour. Never what you typed or which engine",

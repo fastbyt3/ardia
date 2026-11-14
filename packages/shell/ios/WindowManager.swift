@@ -14,12 +14,18 @@ final class WindowManager: NSObject, NSWindowDelegate {
   private var lightsCenters: [String: (center: NSPoint, trailing: Bool)] = [:]
   private var unreportedFrames = Set<ObjectIdentifier>()
   private weak var lastPlaced: NSWindow?
+  private weak var lastKeyBrowser: NSWindow?
   private static let lastFrameKey = "ArdiaLastWindowFrame"
   private var lastFrame = UserDefaults.standard.string(forKey: WindowManager.lastFrameKey) ?? UserDefaults.standard.string(forKey: "NSWindow Frame BrowserWindow")
   private static let behindTimeout = 1.5
   private static let revealTimeout = 0.6
   private let typeAhead = TypeAheadHold()
   private(set) lazy var fullScreen = FullScreenRestore(windows: self)
+
+  private override init() {
+    super.init()
+    NotificationCenter.default.addObserver(self, selector: #selector(appDidBecomeActive(_:)), name: NSApplication.didBecomeActiveNotification, object: nil)
+  }
 
   func window(_ id: String) -> NSWindow? { managed[id]?.window }
 
@@ -137,6 +143,7 @@ final class WindowManager: NSObject, NSWindowDelegate {
     relayoutRoot(window)
     managed[id] = entry
     if !small { lastPlaced = window }
+    if !small && window.isKeyWindow { lastKeyBrowser = window }
     if window.isMiniaturized {
       observeFrame(window)
       return reportFrame(window)
@@ -235,6 +242,7 @@ final class WindowManager: NSObject, NSWindowDelegate {
     NotificationCenter.default.removeObserver(self, name: nil, object: from)
     entry.window = to
     if lastPlaced === from { lastPlaced = to }
+    if lastKeyBrowser === from { lastKeyBrowser = to }
     observeDelegateNotifications(to)
     observeFrame(to)
     reportFrame(to)
@@ -405,8 +413,35 @@ final class WindowManager: NSObject, NSWindowDelegate {
 
   func windowDidBecomeKey(_ notification: Notification) {
     guard let window = notification.object as? NSWindow, let id = id(of: window) else { return }
-    if isMainWindow(window) { lastPlaced = window }
+    if isMainWindow(window) {
+      lastPlaced = window
+      lastKeyBrowser = window
+    }
     ShellEvents.send(.window, ["type": "focus", "id": id])
+  }
+
+  @objc private func appDidBecomeActive(_ notification: Notification) {
+    if ArdiaChromeWindowHost.consumePictureInPictureActivation() { return }
+    DispatchQueue.main.async { [weak self] in self?.focusFullScreenBrowserPastPiP() }
+  }
+
+  private func focusFullScreenBrowserPastPiP() {
+    guard !LaunchConfig.shared.background, NSApp.isActive, NSApp.modalWindow == nil,
+      let browser = lastKeyBrowser, isMainWindow(browser), browser.isVisible, !browser.isMiniaturized,
+      browser.styleMask.contains(.fullScreen)
+    else { return }
+    guard NSApp.orderedWindows.contains(where: {
+      $0.isVisible && !$0.isMiniaturized && $0.isOnActiveSpace && ArdiaChromeWindowHost.isVideoPicture(inPictureWindow: $0)
+    }) else { return }
+    if managed.values.contains(where: {
+      $0.kind.isBrowser && $0.window !== browser && $0.window.isVisible && !$0.window.isMiniaturized && $0.window.isOnActiveSpace
+    }) { return }
+    if let key = NSApp.keyWindow, key.isOnActiveSpace, !ArdiaChromeWindowHost.isVideoPicture(inPictureWindow: key) { return }
+    browser.makeKeyAndOrderFront(nil)
+    DispatchQueue.main.asyncAfter(deadline: .now() + 1) { [weak browser] in
+      guard NSApp.isActive, let browser else { return }
+      ShellEvents.send(.app, ["type": "fullscreenPiPReturn", "success": browser.isOnActiveSpace && browser.isKeyWindow])
+    }
   }
 
   func windowWillClose(_ notification: Notification) {
